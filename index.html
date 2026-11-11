@@ -486,7 +486,22 @@ textarea{font-size:12px;word-break:break-all}
   try { const r = localStorage.getItem(KEY); if (r) S = JSON.parse(r); } catch (e) { S = null; }
   if (!S) { try { const r = localStorage.getItem(OLD_KEY); if (r) S = migrate(JSON.parse(r)); } catch (e) { S = null; } }
   if (!S || S.v !== 2) S = newState(1);
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* stockage indisponible */ } }
+  // État de l'enregistrement automatique (affiché sur l'accueil pour savoir si la partie est bien sauvegardée)
+  let saveOk = null, savedAt = null;
+  const inFrame = (() => { try { return window.top !== window; } catch (e) { return true; } })();
+  function storageWorks() { try { localStorage.setItem('__t', '1'); const ok = localStorage.getItem('__t') === '1'; localStorage.removeItem('__t'); return ok; } catch (e) { return false; } }
+  const storageOk = storageWorks();
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* ignoré */ }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(S)); saveOk = true; savedAt = new Date(); }
+    catch (e) { saveOk = false; }
+  }
+  function storageBanner() {
+    const hm = d => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    if (!storageOk || saveOk === false) return `<div class="fb ko"><div class="fbt">⚠️ Partie non enregistrée</div><div class="small">Ce navigateur refuse d'enregistrer la partie (navigation privée ? cookies bloqués ?). Après chaque match, va dans Réglages → Copier le code et colle-le dans Notes.</div></div>`;
+    if (inFrame) return `<div class="fb ko"><div class="fbt">⚠️ Page intégrée</div><div class="small">Le jeu est affiché dans une autre page : la partie risque de ne pas être conservée. Ouvre directement le lien du jeu dans Safari. Sinon, copie ton code après chaque match (Réglages).</div></div>`;
+    return `<p class="muted small">✓ Enregistrement automatique actif${savedAt ? ' · dernier : ' + hm(savedAt) : ''}. Ne pas utiliser la navigation privée.</p>`;
+  }
 
   const fix = j => S.fixtures[j - 1];
   const len = () => S.fixtures.length;
@@ -660,6 +675,7 @@ textarea{font-size:12px;word-break:break-all}
   function home() {
     const t = totals(), f = fix(S.next), obj = objective(), objPts = Math.round(obj.ppg * len()), L = league(played()), mp = L.me.pos;
     return `<header class="top"><div><div class="kicker">Saison ${seasonLabel(S.season)} · ${esc(lgName(S.lg))} · ${esc(S.club)}</div><h1>${esc(S.name)} <span class="age">${S.age} ans</span></h1></div></header>
+    ${storageBanner()}
     <section class="card hero">
       <div class="ovr"><div class="ovrn">${Math.round(S.ovr)}</div><div class="ovrl">NOTE</div></div>
       <div class="herotxt"><div class="tier">${LG.tier(S.ovr)}</div><div class="role r-${S.role}">${ROLE[S.role]}</div>
